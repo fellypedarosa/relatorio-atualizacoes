@@ -1,0 +1,3 @@
+SIMULACAO
+1. BIOS, BIOS ( Version : 1.0.0 )
+2. FRMW, iDRAC ( Version : 2.0.0 )

@@ -1,0 +1,4 @@
+SIMULACAO
+DELL EMC System Update 1.9.2.0
+No applicable updates are available.
+Exiting DSU!

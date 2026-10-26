@@ -1,0 +1,8 @@
+SIMULACAO
+------------------ Update Preview -----------------
+# : Type : Component : Version : Filename
+---------------------------------------------------
+1 : BIOS : BIOS : 2.0.0 : BIOS_DEMO.EXE
+2 : Firmware : iDRAC : 3.0.0 : IDRAC_DEMO.EXE
+NOTE: The preview option displays the components which can be updated based on Catalog. This option does not update.
+Exiting DSU!

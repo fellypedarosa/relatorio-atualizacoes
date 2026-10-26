@@ -1,0 +1,5 @@
+/resultados/
+/ferramentas/pacotes/*
+/ferramentas/extraidos/
+/dist/
+!/ferramentas/pacotes/.gitkeep

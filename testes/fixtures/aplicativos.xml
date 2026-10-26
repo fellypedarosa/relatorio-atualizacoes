@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Aplicativos>
+  <Aplicativo nome="Veeam Backup &amp; Replication (DEMO)" fabricante="Veeam" versao="12.0.0.0" edicao="" />
+  <Aplicativo nome="Zabbix Agent (DEMO)" fabricante="Zabbix" versao="6.0.0" edicao="" />
+  <Aplicativo nome="Trend Micro (DEMO)" fabricante="Trend Micro" versao="1.0" edicao="" />
+  <Aplicativo nome="Java (DEMO)" fabricante="Exemplo" versao="8.0" edicao="" />
+  <Aplicativo nome="Aplicação; com &quot;aspas&quot; (DEMO)" fabricante="Exemplo" versao="" edicao="" />
+</Aplicativos>

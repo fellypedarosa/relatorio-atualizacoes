@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Compatibilidade schemaVersion="1" packageVersion="1.0.0">
+  <Limites consultaSegundos="900" preparacaoSegundos="300" downloadSegundos="120" wmiSegundos="60" minimoDiscoMB="256" />
+  <Sistemas>
+    <Sistema version="6.1" profile="dsu-legacy" name="Windows Server 2008 R2" />
+    <Sistema version="6.2" profile="dsu-legacy" name="Windows Server 2012" />
+    <Sistema version="6.3" profile="dsu-modern" name="Windows Server 2012 R2" />
+    <Sistema version="10.0" build="14393" profile="dsu-modern" name="Windows Server 2016" />
+    <Sistema version="10.0" build="17763" profile="dsu-modern" name="Windows Server 2019" />
+  </Sistemas>
+  <!-- Versions intentionally pinned, not latest. OS support documented; pilot pending. -->
+  <Perfis>
+    <Perfil id="dsu-legacy" version="1.5.3" operation="Preview"
+      file="Systems-Management_Application_RT3W9_WN64_1.5.3_A00.EXE"
+      url="https://dl.dell.com/FOLDER04882840M/1/Systems-Management_Application_RT3W9_WN64_1.5.3_A00.EXE"
+      alternateUrl="https://downloads.dell.com/FOLDER04882840M/1/Systems-Management_Application_RT3W9_WN64_1.5.3_A00.EXE"
+      sha256="2b437318e3c71d89d567498ef756f2fbcdfc4b9201406ee038efb0a2ba86fcf1"
+      source="https://www.dell.com/support/home/en-us/drivers/driversdetails?driverid=rt3w9">
+      <Models>R210,R210 II,R220,R230,R310,R320,R330,R410,R415,R420,R430,R440,R510,R515,R520,R530,R530xd,R540,R610,R620,R630,R640,R6415,R710,R715,R720,R720XD,R730,R730xd,R740,R740XD,R7415,R7425,R810,R815,R820,R840,R910,R920,R930,R940,R940xa,T110,T110 II,T130,T310,T320,T330,T410,T420,T430,T440,T610,T620,T630,T640,T710,M420,M520,M610,M610x,M620,M630,M640,M710,M710HD,M820,M830,M910,M915,C4130,C4140,C6320,C6400,C6420,FC430,FC630,FC640,FC830</Models>
+    </Perfil>
+    <Perfil id="dsu-modern" version="1.9.2.0" operation="Compliance"
+      file="Systems-Management_Application_5C2CW_WN64_1.9.2.0_A00.EXE"
+      url="https://dl.dell.com/FOLDER07525263M/1/Systems-Management_Application_5C2CW_WN64_1.9.2.0_A00.EXE"
+      alternateUrl="https://downloads.dell.com/FOLDER07525263M/1/Systems-Management_Application_5C2CW_WN64_1.9.2.0_A00.EXE"
+      sha256="2905a5c8717a9806f76fa88af340fd4747a45c5bd846849ec0bd336ece7f6cbe"
+      source="https://www.dell.com/support/home/en-us/drivers/driversdetails?driverid=5c2cw">
+      <Models>R220,R230,R240,R320,R330,R340,R420,R430,R440,R450,R520,R530,R530xd,R540,R550,R620,R630,R640,R650,R6515,R6525,R720,R720XD,R730,R730xd,R740,R740xd,R750,R7515,R7525,R820,R830,R840,R920,R930,R940,R940xa,T130,T140,T320,T330,T340,T420,T430,T440,T620,T630,T640,C6320,C6320p,C6420,C6520,C6525,FC430,FC630,FC640,FC830,M420,M520,M520 (for PE VRTX),M620,M630,M640,M820,M830,MX740c,MX750c,MX840c,XE2420,XE7420,XE7440,XE8545,XR11,XR12</Models>
+    </Perfil>
+  </Perfis>
+</Compatibilidade>

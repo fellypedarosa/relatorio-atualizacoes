@@ -1,0 +1,10 @@
+SIMULACAO - dados sinteticos; nunca usados como evidencia de um servidor real.
+DELL EMC System Update 1.9.2.0
+-----------------Details-----------------
+1 BIOS
+Current Version : 1.0.0 Upgrade to : 2.0.0, Criticality : Urgent, Type : BIOS
+2 PERC H730
+Current Version : 3.0 Same as : 3.0, Criticality : Recommended, Type : Firmware
+3 Network Adapter
+Current Version : 4.0 Downgrade to : 3.0, Criticality : Optional, Type : Driver
+Exiting DSU!
