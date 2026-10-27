@@ -151,6 +151,36 @@ function Get-ReportNativeArguments {
     }
 }
 
+function Read-ReportProcessOutput {
+    param([string]$StandardOutput, [string]$StandardError, $Timer, [int]$TimeoutSeconds)
+    while ($true) {
+        $outputStream = $null; $errorStream = $null
+        $outputReader = $null; $errorReader = $null
+        try {
+            # Acquire both files exclusively: never interpret a partial output
+            # while a redirect handler or another process still has it open.
+            $outputStream = [IO.File]::Open($StandardOutput, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::None)
+            $errorStream = [IO.File]::Open($StandardError, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::None)
+            $outputReader = New-Object IO.StreamReader($outputStream)
+            $errorReader = New-Object IO.StreamReader($errorStream)
+            return (New-ReportObject @{ Output=$outputReader.ReadToEnd(); Error=$errorReader.ReadToEnd() })
+        } catch {
+            $baseException = $_.Exception.GetBaseException()
+            $nativeError = [Runtime.InteropServices.Marshal]::GetHRForException($baseException) -band 65535
+            if (-not ($baseException -is [IO.IOException]) -or @(32,33) -notcontains $nativeError) { throw }
+            if ($Timer.Elapsed.TotalSeconds -ge $TimeoutSeconds) {
+                throw 'Tempo excedido aguardando a liberacao dos arquivos de saida. Outro processo pode continuar usando esses arquivos; aguarde seu termino antes de repetir a coleta.'
+            }
+        } finally {
+            if ($null -ne $outputReader) { $outputReader.Dispose() }
+            if ($null -ne $errorReader) { $errorReader.Dispose() }
+            if ($null -ne $outputStream) { $outputStream.Dispose() }
+            if ($null -ne $errorStream) { $errorStream.Dispose() }
+        }
+        Start-Sleep -Milliseconds 100
+    }
+}
+
 function Invoke-ReportDellProcess {
     param($Context, [string]$Path, [string]$Operation, [string]$Label, [int]$TimeoutSeconds, [string]$Target = '')
     if ($Operation -eq 'Extract' -or $Operation -eq 'InstallTool') {
@@ -164,6 +194,7 @@ function Invoke-ReportDellProcess {
     Write-ReportLog $Context ('Executando ferramenta Dell: {0} {1}' -f $Path, $arguments)
     $stdin = Join-Path $Context.Evidence ($Label + '.stdin.txt')
     [IO.File]::WriteAllText($stdin, '')
+    $timer = [Diagnostics.Stopwatch]::StartNew()
     $process = Start-Process -FilePath $Path -ArgumentList $arguments -WorkingDirectory ([IO.Path]::GetDirectoryName($Path)) -WindowStyle Hidden -RedirectStandardInput $stdin -RedirectStandardOutput $stdout -RedirectStandardError $stderr -PassThru -ErrorAction Stop
     try {
         # Windows PowerShell may lose ExitCode for redirected Start-Process calls
@@ -173,15 +204,26 @@ function Invoke-ReportDellProcess {
             $Context.StopRequested = $true
             throw ('Tempo excedido. Processo {0} mantido em execucao, sem encerramento forcado. Evidencias: {1}. Aguarde o termino antes de nova coleta.' -f $process.Id, $stdout)
         }
-        # Flush redirected asynchronous stream handlers after process exit.
-        $process.WaitForExit()
-        $result = New-ReportObject @{ ExitCode=$process.ExitCode; Output=[IO.File]::ReadAllText($stdout); Error=[IO.File]::ReadAllText($stderr); Path=$Path; Arguments=$arguments }
+        # Save the parent's code before reading files; a child/redirect handler
+        # may still own them. Do not use an unbounded WaitForExit() to drain pipes.
+        $result = New-ReportObject @{ ExitCode=$process.ExitCode; Output=''; Error=''; Path=$Path; Arguments=$arguments; ProcessId=$process.Id; OutputPath=$stdout; ErrorPath=$stderr; OutputComplete=$false }
         Save-ReportEvidence $Context ($Label + '.processo.xml') $result
         if ($null -eq $result.ExitCode) {
             $Context.StopRequested = $true
             throw ('Nao foi possivel obter o codigo de saida do processo Dell {0}. Resultado indeterminado; nenhuma etapa seguinte sera executada. Consulte {1}.processo.xml em evidencias.' -f $process.Id, $Label)
         }
+        Write-ReportLog $Context ('Processo Dell {0} retornou codigo {1}; aguardando liberacao das saidas.' -f $Label, $result.ExitCode)
+        try {
+            $captured = Read-ReportProcessOutput $stdout $stderr $timer $TimeoutSeconds
+            $result.Output = $captured.Output
+            $result.Error = $captured.Error
+            $result.OutputComplete = $true
+            Save-ReportEvidence $Context ($Label + '.processo.xml') $result
+        } catch {
+            $Context.StopRequested = $true
+            throw ('Processo Dell {0}, codigo {1}: nao foi possivel confirmar a saida completa. {2} Evidencias preservadas em {3}.processo.xml e arquivos stdout/stderr. Nenhuma etapa seguinte sera executada.' -f $process.Id, $result.ExitCode, $_.Exception.Message, $Label)
+        }
         Write-ReportLog $Context ('Processo Dell {0} concluido; codigo de saida: {1}.' -f $Label, $result.ExitCode)
         return $result
-    } finally { $process.Dispose() }
+    } finally { $process.Dispose(); $timer.Stop() }
 }

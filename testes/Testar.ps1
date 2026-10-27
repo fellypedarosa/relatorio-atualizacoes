@@ -251,6 +251,58 @@ Test-Case 'Processo redirecionado preserva codigos zero e nao zero e evidencias 
         }
     } finally { $ctx.Writer.Dispose() }
 }
+Test-Case 'Leitura aguarda outro processo liberar arquivo sem perder a saida final' {
+    $lockOutput = Join-Path $testOutput 'saida-bloqueada.txt'
+    $lockError = Join-Path $testOutput 'erro-bloqueado.txt'
+    $ready = Join-Path $testOutput 'bloqueio-pronto.txt'
+    [IO.File]::WriteAllText($lockError,'')
+    $helperPath = Join-Path $testOutput 'manter-arquivo-aberto.ps1'
+    $helperText = @'
+param($OutputPath,$ReadyPath)
+$stream = [IO.File]::Open($OutputPath,[IO.FileMode]::Create,[IO.FileAccess]::Write,[IO.FileShare]::Read)
+try {
+    [IO.File]::WriteAllText($ReadyPath,'pronto')
+    Start-Sleep -Milliseconds 1500
+    $bytes = [Text.Encoding]::UTF8.GetBytes('saida final apos desbloqueio')
+    $stream.Write($bytes,0,$bytes.Length)
+} finally { $stream.Dispose() }
+'@
+    [IO.File]::WriteAllText($helperPath,$helperText)
+    $helperArguments = '-NoLogo -NoProfile -File "' + $helperPath + '" "' + $lockOutput + '" "' + $ready + '"'
+    $child = Start-Process -FilePath (Join-Path $PSHOME 'powershell.exe') -ArgumentList $helperArguments -WindowStyle Hidden -PassThru
+    $timer = [Diagnostics.Stopwatch]::StartNew()
+    try {
+        [void]$child.Handle
+        while (-not [IO.File]::Exists($ready) -and $timer.Elapsed.TotalSeconds -lt 10) { Start-Sleep -Milliseconds 50 }
+        Assert-True ([IO.File]::Exists($ready)) 'Processo auxiliar nao confirmou bloqueio.'
+        $result = Read-ReportProcessOutput $lockOutput $lockError $timer 10
+        Assert-True ($result.Output -eq 'saida final apos desbloqueio' -and $result.Error -eq '') 'Saida parcial ou perdida apos bloqueio real.'
+        Assert-True ($child.WaitForExit(5000)) 'Auxiliar nao terminou no prazo.'
+        Assert-True ($child.ExitCode -eq 0) 'Auxiliar falhou.'
+    } finally { $child.Dispose(); $timer.Stop() }
+}
+Test-Case 'Saida bloqueada preserva codigo do processo e impede continuar no timeout' {
+    function Assert-ReportDellBinary { param($Path) }
+    $lockStream = $null
+    function Start-Process {
+        param($FilePath,$ArgumentList,$WorkingDirectory,$WindowStyle,$RedirectStandardInput,$RedirectStandardOutput,$RedirectStandardError,[switch]$PassThru,$ErrorAction)
+        [IO.File]::WriteAllText($RedirectStandardError,'')
+        $lock = [IO.File]::Open($RedirectStandardOutput,[IO.FileMode]::Create,[IO.FileAccess]::Write,[IO.FileShare]::None)
+        Set-Variable -Name lockStream -Value $lock -Scope 1
+        $fake = New-ReportObject @{ Handle=[IntPtr]1; Id=12345; ExitCode=7 }
+        $fake | Add-Member ScriptMethod WaitForExit { param($milliseconds); return $true }
+        $fake | Add-Member ScriptMethod Dispose { }
+        return $fake
+    }
+    $ctx = New-ReportContext $testRoot $testOutput 'Demonstracao'
+    try {
+        $message = ''
+        try { Invoke-ReportDellProcess $ctx $env:ComSpec 'Version' 'processo-saida-bloqueada' 0 } catch { $message=$_.Exception.Message }
+        Assert-True ($ctx.StopRequested -and $message -match 'saida completa' -and $message -match 'Tempo excedido') 'Bloqueio de arquivo nao foi tratado com limite.'
+        $evidence = Import-Clixml -LiteralPath (Join-Path $ctx.Evidence 'processo-saida-bloqueada.processo.xml')
+        Assert-True ($evidence.ExitCode -eq 7 -and -not $evidence.OutputComplete -and $evidence.OutputPath -ne '') 'Codigo ou caminhos das evidencias perdidos antes da leitura.'
+    } finally { if ($null -ne $lockStream) { $lockStream.Dispose() }; $ctx.Writer.Dispose() }
+}
 Test-Case 'Codigo de saida ausente preserva evidencia e bloqueia continuidade' {
     function Assert-ReportDellBinary { param($Path) }
     function Start-Process {
@@ -268,7 +320,7 @@ Test-Case 'Codigo de saida ausente preserva evidencia e bloqueia continuidade' {
         try { Invoke-ReportDellProcess $ctx $env:ComSpec 'Version' 'processo-sem-codigo' 10 } catch { $message=$_.Exception.Message }
         Assert-True ($ctx.StopRequested -and $message -match 'Resultado indeterminado') 'Resultado desconhecido nao bloqueou continuidade com mensagem clara.'
         $evidence = Import-Clixml -LiteralPath (Join-Path $ctx.Evidence 'processo-sem-codigo.processo.xml')
-        Assert-True ($null -eq $evidence.ExitCode -and $evidence.Output -eq 'extracao simulada') 'Evidencia de resultado indeterminado perdida.'
+        Assert-True ($null -eq $evidence.ExitCode -and -not $evidence.OutputComplete -and [IO.File]::ReadAllText($evidence.OutputPath) -eq 'extracao simulada') 'Evidencia de resultado indeterminado perdida.'
     } finally { $ctx.Writer.Dispose() }
 }
 Test-Case 'Codigo DSU nao zero prevalece sobre mensagem de zero pendencias' {
