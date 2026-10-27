@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<Compatibilidade schemaVersion="1" packageVersion="1.0.0">
+<Compatibilidade schemaVersion="1" packageVersion="1.0.1">
   <Limites consultaSegundos="900" preparacaoSegundos="300" downloadSegundos="120" wmiSegundos="60" minimoDiscoMB="256" />
   <Sistemas>
     <Sistema version="6.1" profile="dsu-legacy" name="Windows Server 2008 R2" />

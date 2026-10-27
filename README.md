@@ -2,7 +2,7 @@
 
 Pacote para execução local e manual em Windows Server. Consulta atualizações Microsoft e Dell, inventaria aplicativos e produz um CSV por execução para análise no Excel. Aplicativos são apenas inventariados: nenhuma comparação com versões mais recentes é feita.
 
-**Estado de homologação:** existem testes locais e verificações dos instaladores, mas ainda não houve execução real nos Windows Server alvo. Antes de liberar o uso em produção, consulte a [base técnica e suas fontes](#base-técnica-e-referências), o [registro do que foi efetivamente validado](docs/VALIDACAO.md) e o [roteiro do piloto](docs/PILOTO.md). Referências dos fabricantes fundamentam as APIs e os comandos utilizados; elas não representam uma auditoria ou aprovação deste script pela Dell ou Microsoft.
+**Estado de homologação:** existem testes locais, verificações dos instaladores e um piloto parcial informado no HYPERV02 (PowerEdge R530, Server 2016), em 27/10/2026. O inventário foi concluído; a consulta Microsoft foi bloqueada por serviço parado e a preparação Dell falhou. A coleta completa ainda não está homologada. Antes de liberar o uso em produção, consulte a [base técnica e suas fontes](#base-técnica-e-referências), o [registro da validação local inicial](docs/VALIDACAO.md) e o [roteiro do piloto](docs/PILOTO.md). Referências dos fabricantes fundamentam as APIs e os comandos utilizados; elas não representam uma auditoria ou aprovação deste script pela Dell ou Microsoft.
 
 ## Começar
 
@@ -35,6 +35,29 @@ Iniciar.cmd -Modo Demonstracao -PastaSaida "C:\Relatorios"
 
 O script não altera a política de execução do PowerShell. Se houver bloqueio corporativo, o pacote precisa seguir o procedimento de assinatura/liberação aprovado pela empresa. O inicializador usa o PowerShell de 64 bits e não carrega perfis pessoais.
 
+## Escolha da versão do DSU e compatibilidade Dell
+
+O critério deste projeto é usar uma versão com **compatibilidade explicitamente publicada pela Dell para o Windows e o modelo do servidor**. As duas versões abaixo são as selecionadas na implementação atual. Elas não foram demonstradas como as mais recentes compatíveis nem como as únicas opções possíveis. A fixação da versão exata é uma decisão do projeto para limitar as combinações a validar; não é uma exigência da Dell de substituir toda versão diferente.
+
+As páginas oficiais foram conferidas em **27/10/2026**. Em cada link, consulte **Sistemas operacionais compatíveis / Supported Operating Systems** e **Sistemas compatíveis / Compatible Systems**:
+
+| Versão do DSU no pacote | Windows Server publicados na página Dell | Referência oficial |
+|---|---|---|
+| 1.5.3 | 2008 R2, 2012, 2012 R2 e 2016 | [Dell — pacote RT3W9, compatibilidade e download](https://www.dell.com/support/home/en-us/drivers/driversdetails?driverid=rt3w9) |
+| 1.9.2.0 | 2012 R2, 2016, 2019 LTSC e 2022 LTSC; também Windows Storage Server 2012 R2 | [Dell — pacote 5C2CW, compatibilidade e download](https://www.dell.com/support/home/en-us/drivers/driversdetails?driverid=5c2cw) |
+
+O suporte listado para um pacote não amplia automaticamente o escopo do script: Server 2022 e Windows Storage Server não estão contemplados pela seleção atual. As páginas também listam outros sistemas fora do escopo deste projeto.
+
+| Windows Server alvo do script | DSU selecionado inicialmente | Alternativa por modelo prevista no código |
+|---|---|---|
+| 2008 R2 | 1.5.3 | Nenhuma. |
+| 2012 | 1.5.3 | Nenhuma. |
+| 2012 R2 | 1.9.2.0 | 1.5.3 se o modelo estiver somente na lista do perfil legado. |
+| 2016 | 1.9.2.0 | 1.5.3 se o modelo estiver somente na lista do perfil legado. |
+| 2019 | 1.9.2.0 | Nenhuma; modelo ausente é rejeitado. |
+
+Confira a seleção efetiva na [matriz de configuração](configuracao/compatibilidade.xml) e em `Get-ReportProfile`, no módulo [Ambiente.ps1](modulos/Ambiente.ps1). A presença do Windows e do modelo nas listas publicadas é uma referência de compatibilidade histórica, não prova de homologação deste script, de manutenção atual dessa versão ou de cobertura completa do catálogo de atualizações. As combinações e dependências precisam ser verificadas no piloto. Uma versão instalada diferente do perfil não deve ser chamada de incompatível apenas por essa diferença; é necessário conferir a documentação da versão instalada.
+
 ## Preparação automática Dell
 
 O perfil considera Windows e modelo. Um DSU já existente só é reutilizado se sua versão corresponder ao perfil e sua assinatura for válida e pertencer à Dell. Caso necessário:
@@ -50,6 +73,24 @@ A instalação pode registrar o DSU no sistema; o pacote não promete isolamento
 
 Os SHA-256 autorizados para extração/instalação também estão fixados no código. Alterar a matriz para apontar a outro pacote Dell não autoriza a execução de um instalador diferente, como um pacote de firmware.
 
+### DSU instalado com versão diferente: abordagem recomendada
+
+Para a primeira versão e a frota de aproximadamente 18 servidores, recomenda-se **avaliar e, quando aprovada, realizar a troca manualmente como preparação separada da geração do relatório**. A recomendação é do projeto: permite acompanhar as mensagens do instalador e evita automatizar a remoção antes de validar seu comportamento em cada ambiente. O script atual não possui desinstalação automática.
+
+Uma troca pode ser decidida para padronizar no perfil documentado do projeto. Isso não demonstra que a versão anterior fosse defeituosa ou incompatível. Antes de remover uma instalação existente, o responsável deve conferir o Windows/modelo nas fontes acima, verificar se outras rotinas usam esse DSU e ter os instaladores da versão atual e da versão escolhida disponíveis para eventual recuperação.
+
+Procedimento proposto, sujeito à autorização para o servidor e o período:
+
+1. Registrar versão, caminho e configurações utilizadas pelo DSU atual. Confirmar que não existe uma operação Dell em andamento; aguardar seu término sem encerrar processos ou serviços.
+2. Conferir o instalador de destino: versão, compatibilidade, SHA-256 e assinatura Dell. Preparar também a recuperação da instalação anterior, caso a troca falhe.
+3. Usar **Painel de Controle → Programas e Recursos → Dell System Update → Desinstalar**, conforme o [procedimento Dell para DSU 2.1.1.0 no Windows](https://www.dell.com/support/manuals/en-us/system-update/dsu_2.1.1.0_ug/to-uninstall-dell-system-update-on-windows-through-ui?guid=guid-73d9bb03-ae5f-451c-8d87-0c78bb5034e3&lang=en-us). Para outra versão, conferir o manual correspondente; não remover pastas ou entradas do Registro como substituto do desinstalador.
+4. Após a remoção bem-sucedida e sem pendências, instalar manualmente o pacote escolhido seguindo as instruções da página Dell de download. Registrar mensagens e resultados de ambas as operações. Se houver solicitação de reinicialização ou de ação que afete a produção, suspender o procedimento e obter autorização específica; não aceitar reinício automaticamente. A documentação citada não garante uma troca sem reinicialização ou impacto em todos os servidores.
+5. Abrir um novo terminal como administrador e conferir a versão pelo caminho completo do executável, com `--version`. Depois de corrigidos os impedimentos conhecidos abaixo, validar a consulta do relatório e guardar as evidências. Apenas responder ao comando de versão não comprova a coleta completa.
+
+**Impedimentos identificados no piloto de 27/10/2026, pacote 1.0.0:** no HYPERV02, o DSU existente respondeu como 2.1.1.0, enquanto o perfil selecionava 1.9.2.0. O script registrou `ExitCode` nulo tanto na consulta de versão quanto na extração do pacote, encerrando a etapa com a mensagem incompleta `Extracao do complemento retornou .`. A saída mostrou arquivos extraídos, mas não confirmou o sucesso nem apresentou um `DSU.exe` portátil. Após a remoção manual do DSU, uma segunda execução reproduziu o código nulo na extração, sem instalar o complemento. O serviço Windows Update parado é um impedimento independente, cuja ativação depende de avaliação e autorização.
+
+**Correção no pacote 1.0.1:** a execução mantém o handle nativo do processo antes de aguardar seu término para preservar o código de saída de `Start-Process` com redirecionamento. Esse comportamento é descrito no [repositório oficial do PowerShell, issue #5421](https://github.com/PowerShell/PowerShell/issues/5421). O código obtido passa a aparecer no log e nas evidências. Se ainda estiver ausente, a ferramenta preserva as saídas, informa resultado indeterminado e bloqueia as próximas operações. A correção passou nos testes locais descritos em [VALIDACAO.md](docs/VALIDACAO.md); a preparação e a consulta DSU reais no servidor continuam pendentes de validação. Use um ZIP 1.0.1 gerado após a correção; os ZIPs 1.0.0 anteriores permanecem com o defeito.
+
 ## Proteção da produção
 
 - A ferramenta não possui caminhos de execução para aplicar as atualizações encontradas, reiniciar, desligar, parar/reconfigurar serviços ou excluir dados de produção.
@@ -64,7 +105,7 @@ Os SHA-256 autorizados para extração/instalação também estão fixados no c�
 
 ## Base técnica e referências
 
-As referências abaixo foram consultadas durante o planejamento e a implementação, com revisão documental em **26/10/2026**. Cada uma indica qual decisão pode ser conferida e em qual parte do código ela foi implementada. As explicações são resumos; para uma revisão operacional, consulte o documento original e a versão da ferramenta que será executada.
+As referências abaixo foram consultadas durante o planejamento e a implementação, com revisão inicial em **26/10/2026**. A compatibilidade dos pacotes DSU e o procedimento de desinstalação foram reconferidos em **27/10/2026**, conforme as seções acima. Cada referência indica qual decisão pode ser conferida e em qual parte do código ela foi implementada. As explicações são resumos; para uma revisão operacional, consulte o documento original e a versão da ferramenta que será executada.
 
 ### Dell: versões, comandos e preparação
 
@@ -127,7 +168,7 @@ O CSV usa `;`, UTF-8 com BOM e uma linha por item/resultado. Cada linha contém 
 
 ## Cobertura e validação
 
-Leia [a matriz de compatibilidade](docs/COMPATIBILIDADE.md) e [o roteiro do piloto](docs/PILOTO.md). Os cinco Windows são alvos de compatibilidade, não ambientes já homologados. Os testes executados no desenvolvimento usam PowerShell 5.1 e simulações. Não foi realizado teste em um servidor de produção.
+Leia [a matriz de compatibilidade](docs/COMPATIBILIDADE.md) e [o roteiro do piloto](docs/PILOTO.md). Os cinco Windows são alvos de compatibilidade, não ambientes já homologados. Os testes executados no desenvolvimento usam PowerShell 5.1 e simulações. O piloto parcial no HYPERV02 descrito acima não homologou as consultas Windows Update/DSU nem os demais sistemas da frota.
 
 A coleta de aplicativos cobre o Registro da máquina, hives de usuários já carregados e metadados de executáveis locais associados a serviços. Hives descarregados não são montados; portáteis não registrados não são varridos indiscriminadamente. Produto/edição só é preenchido quando há informação específica; não é deduzido do nome.
 

@@ -1,5 +1,6 @@
 ﻿#requires -version 5.1
-# Development tests; no administrator, downloads, installers, WMI or WUA calls.
+# Development tests; harmless cmd.exe child processes, no administrator,
+# downloads, installers, WMI or WUA calls.
 $ErrorActionPreference = 'Stop'
 $testRoot = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 foreach ($module in @('Comum','Ambiente','Dependencias','Aplicativos','WindowsUpdate','DellUpdate')) { . (Join-Path $testRoot ('modulos\' + $module + '.ps1')) }
@@ -228,6 +229,46 @@ Test-Case 'Servico WUA parado e bloqueado antes de criar sessao COM' {
     try {
         Invoke-ReportWindowsUpdate $ctx
         Assert-True ($ctx.Stages.Count -eq 1 -and $ctx.Stages[0].Status -eq 'Bloqueado') 'Servico parado nao bloqueou a consulta.'
+    } finally { $ctx.Writer.Dispose() }
+}
+Test-Case 'Processo redirecionado preserva codigos zero e nao zero e evidencias reais' {
+    # Only the Dell identity/argument checks are replaced in this test scope;
+    # production cannot use this route to launch an arbitrary executable.
+    function Assert-ReportDellBinary { param($Path) }
+    function Get-ReportNativeArguments { param($Operation,$Target); return $Target }
+    $ctx = New-ReportContext $testRoot $testOutput 'Demonstracao'
+    try {
+        foreach ($expected in @(0,7)) {
+            for ($attempt=0; $attempt -lt 5; $attempt++) {
+                $label = 'processo-real-' + $expected + '-' + $attempt
+                $arguments = '/d /c "echo saida-teste& echo erro-teste 1>&2& exit /b ' + $expected + '"'
+                $result = Invoke-ReportDellProcess $ctx $env:ComSpec 'Version' $label 10 $arguments
+                Assert-True ($null -ne $result.ExitCode -and $result.ExitCode -eq $expected) 'Codigo real ausente ou alterado.'
+                Assert-True ($result.Output -match 'saida-teste' -and $result.Error -match 'erro-teste') 'Saidas redirecionadas perdidas.'
+                $evidence = Import-Clixml -LiteralPath (Join-Path $ctx.Evidence ($label + '.processo.xml'))
+                Assert-True ($null -ne $evidence.ExitCode -and $evidence.ExitCode -eq $expected) 'Codigo perdido na evidencia.'
+            }
+        }
+    } finally { $ctx.Writer.Dispose() }
+}
+Test-Case 'Codigo de saida ausente preserva evidencia e bloqueia continuidade' {
+    function Assert-ReportDellBinary { param($Path) }
+    function Start-Process {
+        param($FilePath,$ArgumentList,$WorkingDirectory,$WindowStyle,$RedirectStandardInput,$RedirectStandardOutput,$RedirectStandardError,[switch]$PassThru,$ErrorAction)
+        [IO.File]::WriteAllText($RedirectStandardOutput,'extracao simulada')
+        [IO.File]::WriteAllText($RedirectStandardError,'')
+        $fake = New-ReportObject @{ Handle=[IntPtr]1; Id=12345; ExitCode=$null }
+        $fake | Add-Member ScriptMethod WaitForExit { param($milliseconds); if ($null -ne $milliseconds) { return $true } }
+        $fake | Add-Member ScriptMethod Dispose { }
+        return $fake
+    }
+    $ctx = New-ReportContext $testRoot $testOutput 'Demonstracao'
+    try {
+        $message = ''
+        try { Invoke-ReportDellProcess $ctx $env:ComSpec 'Version' 'processo-sem-codigo' 10 } catch { $message=$_.Exception.Message }
+        Assert-True ($ctx.StopRequested -and $message -match 'Resultado indeterminado') 'Resultado desconhecido nao bloqueou continuidade com mensagem clara.'
+        $evidence = Import-Clixml -LiteralPath (Join-Path $ctx.Evidence 'processo-sem-codigo.processo.xml')
+        Assert-True ($null -eq $evidence.ExitCode -and $evidence.Output -eq 'extracao simulada') 'Evidencia de resultado indeterminado perdida.'
     } finally { $ctx.Writer.Dispose() }
 }
 Test-Case 'Codigo DSU nao zero prevalece sobre mensagem de zero pendencias' {

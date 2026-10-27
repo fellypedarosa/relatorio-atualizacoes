@@ -166,6 +166,9 @@ function Invoke-ReportDellProcess {
     [IO.File]::WriteAllText($stdin, '')
     $process = Start-Process -FilePath $Path -ArgumentList $arguments -WorkingDirectory ([IO.Path]::GetDirectoryName($Path)) -WindowStyle Hidden -RedirectStandardInput $stdin -RedirectStandardOutput $stdout -RedirectStandardError $stderr -PassThru -ErrorAction Stop
     try {
+        # Windows PowerShell may lose ExitCode for redirected Start-Process calls
+        # unless the native handle is acquired before waiting (PowerShell #5421).
+        [void]$process.Handle
         if (-not $process.WaitForExit($TimeoutSeconds * 1000)) {
             $Context.StopRequested = $true
             throw ('Tempo excedido. Processo {0} mantido em execucao, sem encerramento forcado. Evidencias: {1}. Aguarde o termino antes de nova coleta.' -f $process.Id, $stdout)
@@ -174,6 +177,11 @@ function Invoke-ReportDellProcess {
         $process.WaitForExit()
         $result = New-ReportObject @{ ExitCode=$process.ExitCode; Output=[IO.File]::ReadAllText($stdout); Error=[IO.File]::ReadAllText($stderr); Path=$Path; Arguments=$arguments }
         Save-ReportEvidence $Context ($Label + '.processo.xml') $result
+        if ($null -eq $result.ExitCode) {
+            $Context.StopRequested = $true
+            throw ('Nao foi possivel obter o codigo de saida do processo Dell {0}. Resultado indeterminado; nenhuma etapa seguinte sera executada. Consulte {1}.processo.xml em evidencias.' -f $process.Id, $Label)
+        }
+        Write-ReportLog $Context ('Processo Dell {0} concluido; codigo de saida: {1}.' -f $Label, $result.ExitCode)
         return $result
     } finally { $process.Dispose() }
 }

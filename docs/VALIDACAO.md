@@ -27,3 +27,10 @@ O download inicialmente falhou dentro do ambiente restrito. A preparação foi r
 - Não foram medidos consumo, duração e efeitos de preparação em servidores de produção. Saídas particulares dos equipamentos da frota podem exigir ampliação dos parsers.
 
 O pacote pode ser inspecionado e demonstrado localmente. O passo seguinte de homologação é o piloto explicitamente autorizado conforme `PILOTO.md`.
+
+## Correção 1.0.1 — 27/10/2026
+
+- Evidências fornecidas pelo analista no HYPERV02 (PowerEdge R530, Windows Server 2016) mostraram `ExitCode` nulo nas chamadas Dell do pacote 1.0.0. A extração foi tratada como falha antes da instalação/consulta; a repetição após desinstalação manual do DSU apresentou o mesmo defeito. O inventário foi concluído. As consultas completas não foram homologadas.
+- `Invoke-ReportDellProcess` agora adquire o handle nativo antes de `WaitForExit`, registra o código no log e preserva o resultado em XML. Se o código permanecer nulo, mantém as evidências e bloqueia a continuidade com mensagem explícita de resultado indeterminado. Referência: [PowerShell #5421](https://github.com/PowerShell/PowerShell/issues/5421).
+- 33 testes aprovados, zero falhas, com `powershell.exe -NoLogo -NoProfile -File .\testes\Testar.ps1` no Windows PowerShell 5.1 de desenvolvimento. Os novos testes incluem dez execuções locais de `cmd.exe` com saídas redirecionadas (cinco com retorno 0 e cinco com retorno 7), conferência do XML e um processo simulado com código ausente. Não executam instaladores nem coletores Dell.
+- Essa validação não demonstra que a extração/instalação DSU terá sucesso no servidor. É necessário repetir o piloto com o novo pacote e conferir os códigos e as saídas reais. O bloqueio por serviço Windows Update parado permanece independente desta correção.
